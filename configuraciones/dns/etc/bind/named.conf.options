@@ -1,0 +1,17 @@
+options {
+    directory "/var/cache/bind";
+
+    // Escuchar en todas las interfaces
+    listen-on { any; };
+    listen-on-v6 { any; };
+
+    // Permitir consultas desde localhost y redes locales
+    allow-query { localhost; 172.27.0.0/16; 192.168.1.0/24; };
+
+    recursion yes;
+
+    dnssec-validation auto;
+
+    auth-nxdomain no;
+    listen-on-v6 { any; };
+};

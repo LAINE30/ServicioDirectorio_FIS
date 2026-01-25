@@ -1,0 +1,16 @@
+dn: uid=emafla,ou=People,dc=lcoronado,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+
+uid: emafla
+cn: Ema Fla
+sn: Fla
+givenName: Ema
+uidNumber: 10001
+gidNumber: 10001
+homeDirectory: /home/emafla
+loginShell: /bin/bash
+mail: emafla@lcoronado.com
+userPassword: emafla123

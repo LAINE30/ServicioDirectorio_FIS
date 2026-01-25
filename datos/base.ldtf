@@ -1,0 +1,23 @@
+dn: ou=dicc,dc=fis,dc=epn,dc=ec
+objectClass: organizationalUnit
+ou: dicc
+
+dn: ou=sic,dc=fis,dc=epn,dc=ec
+objectClass: organizationalUnit
+ou: sic
+
+dn: ou=ic,dc=fis,dc=epn,dc=ec
+objectClass: organizationalUnit
+ou: ic
+
+dn: ou=Profesores,ou=dicc,dc=fis,dc=epn,dc=ec
+objectClass: organizationalUnit
+ou: Profesores
+
+dn: ou=Empleados,ou=dicc,dc=fis,dc=epn,dc=ec
+objectClass: organizationalUnit
+ou: Empleados
+
+dn: ou=sem1,ou=sic,dc=fis,dc=epn,dc=ec
+objectClass: organizationalUnit
+ou: sem1

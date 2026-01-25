@@ -1,0 +1,12 @@
+dn: ou=People,dc=lcoronado,dc=com
+objectClass: organizationalUnit
+ou: People
+
+dn: ou=Groups,dc=lcoronado,dc=com
+objectClass: organizationalUnit
+ou: Groups
+
+dn: cn=users,ou=Groups,dc=lcoronado,dc=com
+objectClass: posixGroup
+cn: users
+gidNumber: 5000
