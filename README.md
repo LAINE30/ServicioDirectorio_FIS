@@ -1,441 +1,618 @@
-# **ServicioDirectorio_FIS - Configuración Completa**
+# Servicio Integrado de Directorio y Autenticación para la FIS
 
-## **PROYECTO - Servicio Integrado de Directorio y Autenticación para la FIS**
+**Autor:** Luis Coronado  
+**Institución:** Escuela Politécnica Nacional - Facultad de Ingeniería de Sistemas  
+---
 
-# 📘 Configuración Completa del Sistema Integrado
+## 📋 Tabla de Contenidos
 
-Este documento describe **paso a paso** la configuración completa de un sistema integrado de directorio y autenticación para la Facultad de Ingeniería de Sistemas, incluyendo **Kerberos, LDAP, DNS y NTP**.
+- [Descripción del Proyecto](#descripción-del-proyecto)
+- [Arquitectura del Sistema](#arquitectura-del-sistema)
+- [Requisitos del Sistema](#requisitos-del-sistema)
+- [Instalación y Configuración](#instalación-y-configuración)
+- [Servicios Implementados](#servicios-implementados)
+- [Pruebas y Validación](#pruebas-y-validación)
+- [Estructura del Repositorio](#estructura-del-repositorio)
+- [Troubleshooting](#troubleshooting)
+- [Referencias](#referencias)
 
 ---
 
-## 1️⃣ ARQUITECTURA DEL SISTEMA
+## 🎯 Descripción del Proyecto
 
-###  Diagrama de Componentes
-```
-Cliente FIS <---> [Servidor Integrado]
-                     ↓
-         +-----------------------+
-         |  DNS (BIND9)          | ← Resolución nombres
-         |  NTP (Chrony)         | ← Sincronización tiempo
-         |  Kerberos (KDC)       | ← Autenticación
-         |  LDAP (OpenLDAP)      | ← Directorio
-         +-----------------------+
-```
-
-###  Especificaciones Técnicas
-- **Servidor:** krb5.lcoronado.com
-- **IP de WSL:** 172.27.133.157
-- **Dominio:** lcoronado.com
-- **Reino Kerberos:** LCORONADO.COM
-- **Base LDAP:** dc=lcoronado,dc=com
+Este proyecto implementa un **sistema integrado de directorio y autenticación** diseñado para mejorar los servicios de la Facultad de Ingeniería de Sistemas (FIS). El sistema proporciona una infraestructura centralizada y segura para la gestión de usuarios, autenticación y servicios de red mediante la integración de tecnologías estándar de la industria.
 
 ---
 
-## 2️⃣ CONFIGURACIÓN KERBEROS (SERVIDOR)
+## 🏗️ Arquitectura del Sistema
 
-### 📄 `/etc/krb5.conf`
-```ini
-[libdefaults]
-    default_realm = LCORONADO.COM
-    dns_lookup_kdc = false
-    dns_lookup_realm = false
-    ticket_lifetime = 24h
-    renew_lifetime = 7d
-    forwardable = true
-    rdns = false
-    canonicalize = false
-    rdns = false
+### Diagrama de Arquitectura
 
-[realms]
-    LCORONADO.COM = {
-        kdc = krb5.lcoronado.com
-        admin_server = krb5.lcoronado.com
-    }
-
-[domain_realm]
-    .lcoronado.com = LCORONADO.COM
-    lcoronado.com = LCORONADO.COM
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    SERVIDOR INTEGRADO                       │
+│                  krb5.lcoronado.com                         │
+│                   (172.27.133.157)                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
+│  │   DNS        │  │   NTP        │  │   LDAP       │    │
+│  │   BIND9      │  │   Chrony     │  │   OpenLDAP   │    │
+│  │   :53        │  │   :123       │  │   :389       │    │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘    │
+│         │                 │                 │             │
+│         └─────────────────┼─────────────────┘             │
+│                           │                               │
+│                  ┌────────▼────────┐                      │
+│                  │   KERBEROS      │                      │
+│                  │   MIT KDC       │                      │
+│                  │   :88, :464     │                      │
+│                  └─────────────────┘                      │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            │ SASL/GSSAPI
+                            ▼
+                   ┌─────────────────┐
+                   │    CLIENTES     │
+                   │  Linux/Windows  │
+                   └─────────────────┘
 ```
 
-### 📄 `/etc/krb5kdc/kdc.conf`
-```ini
-[kdcdefaults]
-    kdc_ports = 750,88
+### Componentes del Sistema
 
-[realms]
-    LCORONADO.COM = {
-        database_name = /var/lib/krb5kdc/principal
-        admin_keytab = FILE:/etc/krb5kdc/kadm5.keytab
-        acl_file = /etc/krb5kdc/kadm5.acl
-        key_stash_file = /etc/krb5kdc/stash
-        kdc_ports = 750,88
-        max_life = 10h 0m 0s
-        max_renewable_life = 7d 0h 0m 0s
-        #master_key_type = aes256-cts
-        #supported_enctypes = aes256-cts:normal aes128-cts:normal
-        default_principal_flags = +preauth
-    }
+| Componente | Tecnología | Puerto | Función |
+|------------|-----------|--------|----------|
+| DNS | BIND9 | 53 | Resolución de nombres y registros SRV |
+| NTP | Chrony | 123 | Sincronización de tiempo |
+| LDAP | OpenLDAP | 389 | Directorio de usuarios y recursos |
+| Kerberos KDC | MIT Kerberos | 88, 750 | Autenticación segura |
+| Kerberos Admin | kadmind | 464 | Administración de principals |
+
+---
+
+### Software Base
+- **Sistema Operativo:** Ubuntu 24.04 LTS (Noble Numbat)
+- **Entorno:** WSL2 (Windows Subsystem for Linux) o nativo
+- **Privilegios:** Acceso root (sudo)
+
+### Puertos Requeridos/Utilizados
 ```
-
-### 📄 `/etc/krb5kdc/kadm5.acl`
-```ini
-*/admin@LCORONADO.COM    *
+DNS:        53/TCP, 53/UDP
+NTP:        123/UDP
+LDAP:       389/TCP
+Kerberos:   88/TCP, 88/UDP, 464/TCP, 464/UDP, 750/TCP
 ```
 
 ---
 
-## 3️⃣ CONFIGURACIÓN LDAP (SERVIDOR)
+## 🚀 Instalación y Configuración
 
-### 📄 `/etc/ldap/ldap.conf`
-```ini
-# Configuración LDAP
-BASE    dc=lcoronado,dc=com
-URI     ldap://krb5.lcoronado.com
+### Instalación Automática
 
-TLS_CACERT      /etc/ssl/certs/ca-certificates.crt
-SASL_MECH       GSSAPI
-SASL_REALM      LCORONADO.COM
+El proyecto incluye un script de instalación automatizada que configura todos los servicios.
 
-# Timeouts
-TIMEOUT 15
-TIMELIMIT 15
-```
+#### Paso 1: Clonar el Repositorio
 
-### 📄 Estructura Base LDAP (`base.ldif`)
-```ldif
-dn: dc=lcoronado,dc=com
-objectClass: top
-objectClass: dcObject
-objectClass: organization
-o: Facultad de Ingenieria de Sistemas
-dc: lcoronado
-
-dn: cn=admin,dc=lcoronado,dc=com
-objectClass: simpleSecurityObject
-objectClass: organizationalRole
-cn: admin
-description: LDAP administrator
-
-dn: ou=People,dc=lcoronado,dc=com
-objectClass: organizationalUnit
-ou: People
-
-dn: ou=Groups,dc=lcoronado,dc=com
-objectClass: organizationalUnit
-ou: Groups
-
-dn: ou=Services,dc=lcoronado,dc=com
-objectClass: organizationalUnit
-ou: Services
-```
-
-### 📄 Configuración SASL LDAP
 ```bash
-# /etc/default/slapd
-SLAPD_SERVICES="ldap:/// ldapi:///"
-
-# /etc/ldap/sasl2/slapd.conf
-mech_list: gssapi
-keytab: /etc/krb5.keytab
+git clone https://github.com/LAINE30/Proyecto2-FIS.git
+cd Proyecto2-FIS
 ```
+
+#### Paso 2: Ejecutar el Script de Instalación
+
+```bash
+# Dar permisos de ejecución
+chmod +x CoronadoL-Proyecto2.sh
+
+# Ejecutar como root
+sudo ./CoronadoL-Proyecto2.sh
+```
+
+El script realizará automáticamente:
+1. Actualización del sistema
+2. Configuración de hostname y hosts
+3. Instalación y configuración de DNS (BIND9)
+4. Instalación y configuración de NTP (Chrony)
+5. Instalación y configuración de LDAP (OpenLDAP)
+6. Instalación y configuración de Kerberos
+7. Integración LDAP-Kerberos
+8. Configuración de NSS y PAM
+
+#### Paso 3: Verificar la Instalación
+
+```bash
+# Verificar servicios activos
+systemctl status bind9
+systemctl status chrony
+systemctl status slapd
+systemctl status krb5-kdc
+systemctl status krb5-admin-server
+```
+
+### Parámetros de Configuración
+
+| Parámetro | Valor |
+|-----------|-------|
+| Dominio | lcoronado.com |
+| Realm Kerberos | LCORONADO.COM |
+| Base DN LDAP | dc=lcoronado,dc=com |
+| FQDN Servidor | krb5.lcoronado.com |
+| IP Servidor | 172.27.133.157 |
+| Admin LDAP | cn=admin,dc=lcoronado,dc=com |
+| Contraseña LDAP | admin |
+| Admin Kerberos | admin/admin@LCORONADO.COM |
+| Contraseña Kerberos | admin |
+
+### Usuarios Preconfigurados
+
+| Usuario | UID | Nombre Completo | Rol | Email |
+|---------|-----|----------------|-----|-------|
+| lcoronado | 1000 | Luis Coronado | Administrador | lcoronado@lcoronado.com |
+| emafla | 1001 | Enrique Mafla | Profesor | enrique.mafla@epn.edu.ec |
+
+**Contraseña por defecto:** `admin`
 
 ---
 
-## 4️⃣ CONFIGURACIÓN DNS (BIND9)
+## ⚙️ Servicios Implementados
 
-### 📄 `/etc/bind/named.conf.local`
-```bind
-zone "lcoronado.com" {
-    type master;
-    file "/etc/bind/db.lcoronado.com";
-    allow-transfer { none; };
-};
+### 1. DNS (BIND9)
 
-zone "133.27.172.in-addr.arpa" {
-    type master;
-    file "/etc/bind/db.172.27.133";
-    allow-transfer { none; };
-};
-```
+#### Funcionalidad
+- Resolución de nombres para el dominio `lcoronado.com`
+- Registros A para hosts
+- Registros SRV para Kerberos y LDAP
+- Forwarding a DNS públicos (8.8.8.8, 8.8.4.4)
 
-### 📄 `/etc/bind/db.lcoronado.com`
-```bind
-$TTL    604800
-@       IN      SOA     krb5.lcoronado.com. admin.lcoronado.com. (
-                              2         ; Serial (incrementado)
-                         604800         ; Refresh
-                          86400         ; Retry
-                        2419200         ; Expire
-                         604800 )       ; Negative Cache TTL
-;
-@       IN      NS      krb5.lcoronado.com.
-@       IN      A       172.27.133.157
-krb5    IN      A       172.27.133.157
-ldap    IN      A       172.27.133.157
-www     IN      A       172.27.133.157
-```
-
-### 📄 `/etc/bind/named.conf.options`
-```bind
-options {
-    directory "/var/cache/bind";
-    forwarders {
-        8.8.8.8;
-        8.8.4.4;
-    };
-    dnssec-validation auto;
-    auth-nxdomain no;
-    listen-on { any; };
-    allow-query { any; };
-    recursion yes;
-};
-```
-
----
-
-## 5️⃣ CONFIGURACIÓN NTP (CHRONY)
-
-###  `/etc/chrony/chrony.conf`
-```conf
-# Configuración NTP para Proyecto 2
-pool pool.ntp.org iburst
-allow 172.27.133.0/24
-local stratum 10
-makestep 1.0 3
-rtcsync
-driftfile /var/lib/chrony/chrony.drift
-logdir /var/log/chrony
-```
-
----
-
-## 6️⃣ CONFIGURACIÓN CLIENTE LDAP + KERBEROS (GSSAPI)
-
-### 📋 Paquetes Necesarios en el Cliente
+#### Archivo de Zona
 ```bash
-sudo apt update
-sudo apt install -y \
-  ldap-utils \
-  krb5-user \
-  libsasl2-2 \
-  libsasl2-modules \
-  libsasl2-modules-gssapi-mit \
-  openssh-server \
-  chrony
+cat /etc/bind/db.lcoronado.com
 ```
 
-### 📄 `/etc/krb5.conf` (Cliente)
-```ini
-[libdefaults]
- default_realm = LCORONADO.COM
- dns_lookup_realm = false
- dns_lookup_kdc = true
- ticket_lifetime = 10h
- renew_lifetime = 7d
- forwardable = true
-
-[realms]
- LCORONADO.COM = {
-  kdc = krb5.lcoronado.com
-  admin_server = krb5.lcoronado.com
- }
-
-[domain_realm]
- .lcoronado.com = LCORONADO.COM
- lcoronado.com = LCORONADO.COM
-```
-
-### 📄 `/etc/ldap/ldap.conf` (Cliente)
-```ini
-BASE   dc=lcoronado,dc=com
-URI    ldap://krb5.lcoronado.com
-
-SASL_MECH GSSAPI
-SASL_REALM LCORONADO.COM
-SASL_NOCANON on
-
-TLS_CACERT      /etc/ssl/certs/ca-certificates.crt
-```
-
-### 📄 `/etc/sasl2/ldap.conf` (Cliente)
-```ini
-mech_list: gssapi
-```
-
----
-
-## 7️⃣ INTEGRACIÓN DE SERVICIOS
-
-### 🔗 Kerberos + LDAP
+#### Comandos de Prueba
 ```bash
-# Crear principal LDAP en Kerberos
-sudo kadmin.local -q "addprinc -randkey ldap/krb5.lcoronado.com"
-
-# Crear keytab para LDAP
-sudo kadmin.local -q "ktadd -k /etc/krb5.keytab ldap/krb5.lcoronado.com"
-
-# Asignar permisos
-sudo chown openldap:openldap /etc/krb5.keytab
-```
-
-### 🔗 Usuarios LDAP con Kerberos
-```ldif
-# Ejemplo de usuario integrado
-dn: uid=lcoronado,ou=People,dc=lcoronado,dc=com
-objectClass: inetOrgPerson
-objectClass: posixAccount
-objectClass: shadowAccount
-objectClass: krbPrincipalAux
-uid: lcoronado
-cn: Luis Coronado
-sn: Coronado
-krbPrincipalName: lcoronado@LCORONADO.COM
-```
-
----
-
-## 8️⃣ COMANDOS DE VERIFICACIÓN
-
-### 🔍 Verificar Servidor
-```bash
-# 1. Servicios activos
-systemctl status named chrony krb5-kdc slapd
-
-# 2. Puertos escuchando
-sudo netstat -tulpn | grep -E ":88|:389|:53|:123"
-
-# 3. Principios Kerberos
-sudo kadmin.local -q "listprincs"
-
-# 4. Estructura LDAP
-ldapsearch -Y GSSAPI -H ldap://krb5.lcoronado.com -b "dc=emafla,dc=com"
-```
-
-### 🔍 Verificar Cliente
-```bash
-# 1. Obtener ticket
-kinit emafla@LCORONADO.COM
-
-# 2. Ver ticket
-klist
-
-# 3. Probar LDAP con Kerberos
-ldapwhoami -Y GSSAPI -H ldap://krb5.lcoronado.com
-
-# 4. Búsqueda autenticada
-ldapsearch -Y GSSAPI -b "dc=lcoronado,dc=com" "(uid=*)"
-```
-
-### 🔍 Verificar DNS
-```bash
-# Resolución directa
+# Resolver hostname
 nslookup krb5.lcoronado.com
-nslookup ldap.lcoronado.com
 
-# Registros SRV
-host -t SRV _kerberos._tcp.lcoronado.com
-host -t SRV _ldap._tcp.lcoronado.com
+# Test de resolución DNS
+dig @localhost lcoronado.com
 ```
 
-### 🔍 Verificar NTP
+### 2. NTP (Chrony)
+
+#### Funcionalidad
+- Sincronización con pool NTP público
+- Servidor NTP local para la red
+- Stratum 10 cuando no hay conexión externa
+
+#### Configuración
 ```bash
-# Sincronización
-chronyc tracking
+cat /etc/chrony/chrony.conf
+```
+
+#### Comandos de Prueba
+```bash
+# Ver fuentes NTP
 chronyc sources
 
-# Ver diferencia de tiempo
+# Ver estado de sincronización
+chronyc tracking
+
+# Estadísticas de tiempo
 chronyc sourcestats
 ```
 
+### 3. LDAP (OpenLDAP)
+
+#### Funcionalidad
+- Directorio centralizado de usuarios
+- Estructura organizacional
+
+#### Estructura del Directorio
+```
+dc=lcoronado,dc=com
+├── ou=People
+│   ├── uid=lcoronado
+│   └── uid=emafla
+└── ou=Groups
+    └── cn=users
+```
+
+#### Comandos de Prueba
+```bash
+# Buscar todos los usuarios
+ldapsearch -x -b "dc=lcoronado,dc=com"
+
+# Buscar usuario específico
+ldapsearch -x -b "dc=lcoronado,dc=com" "(uid=emafla)"
+
+# Autenticación simple
+ldapwhoami -x -D "uid=emafla,ou=People,dc=lcoronado,dc=com" -W
+
+# Ver estructura organizacional
+ldapsearch -x -b "dc=lcoronado,dc=com" "(objectClass=organizationalUnit)"
+```
+
+### 4. Kerberos
+
+#### Funcionalidad
+- Autenticación segura mediante tickets
+- Single Sign-On (SSO)
+- Integración con LDAP vía SASL/GSSAPI
+
+#### Realm y Configuración
+- **Realm:** LCORONADO.COM
+- **KDC:** krb5.lcoronado.com
+- **Admin Server:** krb5.lcoronado.com
+
+#### Comandos de Prueba
+```bash
+# Obtener ticket de usuario
+kinit emafla@LCORONADO.COM
+# Contraseña: admin
+
+# Ver tickets activos
+klist
+
+# Destruir ticket
+kdestroy
+
+# Listar todos los principals (como admin)
+sudo kadmin.local -q "listprincs"
+```
+
+#### Crear Nuevo Principal
+```bash
+# Entrar a kadmin
+sudo kadmin.local
+
+# Crear principal para usuario
+kadmin.local: addprinc usuario@LCORONADO.COM
+
+# Crear principal para servicio
+kadmin.local: addprinc -randkey host/servidor.lcoronado.com@LCORONADO.COM
+
+# Salir
+kadmin.local: quit
+```
+
+### 5. Integración LDAP-Kerberos
+
+#### Características
+- Autenticación Kerberos con datos en LDAP
+- SASL/GSSAPI para comunicación segura
+- Keytab para servicio LDAP
+
+#### Verificar Integración
+```bash
+# Obtener ticket Kerberos
+kinit emafla@LCORONADO.COM
+
+# Buscar en LDAP usando Kerberos
+ldapsearch -Y GSSAPI -b "dc=lcoronado,dc=com" "(uid=emafla)"
+
+# Verificar keytab LDAP
+sudo klist -k /etc/ldap/ldap.keytab
+```
+
 ---
 
-## 9️⃣ SCRIPT DE INSTALACIÓN AUTOMÁTICA
+## 🧪 Pruebas y Validación
 
-### 📄 `CoronadoL-Proyecto2.sh` (Servidor)
+#### 1. Pruebas de DNS
 ```bash
 #!/bin/bash
-# Script de configuración completa del servidor integrado
-# Incluye: DNS, NTP, Kerberos, LDAP
-# Ver archivo completo en el repositorio
+echo "=== Pruebas DNS ==="
+
+# Resolución directa
+echo "Resolviendo krb5.lcoronado.com..."
+nslookup krb5.lcoronado.com
+
+# Registros SRV Kerberos
+echo "Verificando registros SRV Kerberos..."
+nslookup -query=srv _kerberos._tcp.lcoronado.com
+
+# Registros SRV LDAP
+echo "Verificando registros SRV LDAP..."
+nslookup -query=srv _ldap._tcp.lcoronado.com
 ```
 
-### 📄 `CoronadoL-Proyecto2-cliente.sh` (Cliente)
+#### 2. Pruebas de NTP
 ```bash
 #!/bin/bash
-# Script de configuración del cliente
-# Configura: Kerberos, LDAP, DNS, NTP
-# Ver archivo completo en el repositorio
+echo "=== Pruebas NTP ==="
+
+# Estado de sincronización
+chronyc tracking
+
+# Fuentes de tiempo
+chronyc sources -v
+
+# Verificar que el servidor está escuchando
+netstat -uln | grep :123
 ```
 
----
-
-## 1️⃣1️⃣ USUARIOS DE PRUEBA CONFIGURADOS
-
-| Usuario | Kerberos Principal | LDAP DN | Rol |
-|---------|-------------------|---------|-----|
-| lcoronado | lcoronado@LCORONADO.COM | uid=lcoronado,ou=People,dc=lcoronado,dc=com | Administrador |
-| emafla | emafla@LCORONADO.COM | uid=emafla,ou=People,dc=lcoronado,dc=com | Usuario prueba |
-| liam | liam@LCORONADO.COM | uid=liam,ou=People,dc=lcoronado,dc=com | Usuario adicional |
-| luis | luis@LCORONADO.COM | uid=luis,ou=People,dc=lcoronado,dc=com | Usuario adicional |
-
-**Contraseña usuario emafla:** `emafla`
-
----
-
-## 1️⃣2️⃣ SEGURIDAD IMPLEMENTADA
-
-### 🔒 Medidas de Seguridad
-1. **Autenticación:** Kerberos con tickets de tiempo limitado
-2. **Encriptación:** AES-256 para tickets Kerberos
-3. **Autorización:** Control de acceso LDAP por DN
-4. **Firewall:** Solo puertos necesarios abiertos (22, 53, 88, 123, 389, 464)
-
-### 🔒 Hardening
+#### 3. Pruebas de LDAP
 ```bash
-# Tiempo de vida de tickets limitado
-ticket_lifetime = 24h
-renew_lifetime = 7d
+#!/bin/bash
+echo "=== Pruebas LDAP ==="
 
-# Encriptación fuerte
-supported_enctypes = aes256-cts:normal aes128-cts:normal
+# Conectividad básica
+ldapsearch -x -LLL -H ldap://localhost -b "dc=lcoronado,dc=com"
 
-# Pre-autenticación requerida
-default_principal_flags = +preauth
+# Autenticación de usuario
+echo "Probando autenticación de emafla..."
+ldapwhoami -x -D "uid=emafla,ou=People,dc=lcoronado,dc=com" -W
+
+# Contar usuarios
+echo "Usuarios en el directorio:"
+ldapsearch -x -b "ou=People,dc=lcoronado,dc=com" -s one | grep -c "dn:"
 ```
+
+#### 4. Pruebas de Kerberos
+```bash
+#!/bin/bash
+echo "=== Pruebas Kerberos ==="
+
+# Obtener ticket
+echo "Obteniendo ticket para emafla..."
+echo "admin" | kinit emafla@LCORONADO.COM
+
+# Verificar ticket
+echo "Tickets activos:"
+klist
+
+# Probar renovación
+echo "Renovando ticket..."
+kinit -R
+
+# Limpiar
+kdestroy
+```
+
+#### 5. Pruebas de Integración
+```bash
+#!/bin/bash
+echo "=== Pruebas de Integración ==="
+
+# Autenticación Kerberos + búsqueda LDAP
+echo "admin" | kinit emafla@LCORONADO.COM
+ldapsearch -Y GSSAPI -b "dc=lcoronado,dc=com" "(uid=emafla)"
+
+# Verificar que todos los servicios están activos
+for service in bind9 chrony slapd krb5-kdc krb5-admin-server; do
+    echo "Verificando $service..."
+    systemctl is-active $service
+done
+```
+
+
 ---
 
-## 1️⃣4️⃣ ESTRUCTURA DE ARCHIVOS DEL PROYECTO
+## 📁 Estructura del Repositorio
 
 ```
-Proyecto2-FIS/
-├── CoronadoL-Proyecto2.sh              # Script servidor
-├── CoronadoL-Proyecto2-cliente.sh      # Script cliente
-├── README.md                           # Este documento
-├── configuraciones/
+servicio-directorio-fis/
+├── README.md                          # Este archivo
+├── CoronadoL-Proyecto2.sh            # Script de instalación automatizada
+├── docs/
+│   ├── analisis-requerimientos.md    # Análisis de requerimientos (30%)
+│   ├── diseño-sistema.md             # Diseño del sistema (30%)
+│   ├── manual-instalacion.md         # Manual detallado de instalación
+│   ├── manual-usuario.md             # Guía para usuarios finales
+│   └── arquitectura.png              # Diagrama de arquitectura
+├── config/
 │   ├── dns/
-│   │   ├── named.conf.local
-│   │   ├── db.lcoronado.com
-│   │   └── named.conf.options
-│   ├── kerberos/
-│   │   ├── krb5.conf
-│   │   └── kdc.conf
+│   │   ├── named.conf.local          # Configuración de zonas DNS
+│   │   ├── named.conf.options        # Opciones de BIND9
+│   │   └── db.lcoronado.com          # Archivo de zona
+│   ├── ntp/
+│   │   └── chrony.conf               # Configuración de Chrony
 │   ├── ldap/
-│   │   ├── ldap.conf
-│   │   └── base.ldif
-│   └── ntp/
-│       └── chrony.conf
-├── datos/
-│   ├── usuarios.ldif
-│   ├── grupos.ldif
-│   └── *.ldif
+│   │   ├── base_structure.ldif       # Estructura base del directorio
+│   │   ├── users.ldif                # Usuarios de ejemplo
+│   │   └── groups.ldif               # Grupos de ejemplo
+│   └── kerberos/
+│       ├── krb5.conf                 # Configuración del cliente
+│       ├── kdc.conf                  # Configuración del KDC
+│       └── kadm5.acl                 # ACLs de administración
 ├── scripts/
-│   ├── test-servicio-integrado.sh
-│   ├── backup-configuracion.sh
-│   └── monitoreo-servicios.sh
-└── docs/
-    ├── diagrama-arquitectura.png
-    ├── principios-kerberos.txt
-    └── manual-usuario.pdf
+│   ├── test-dns.sh                   # Pruebas de DNS
+│   ├── test-ntp.sh                   # Pruebas de NTP
+│   ├── test-ldap.sh                  # Pruebas de LDAP
+│   ├── test-kerberos.sh              # Pruebas de Kerberos
+│   ├── test-integration.sh           # Pruebas de integración
+│   └── backup-config.sh              # Backup de configuraciones
+└── LICENSE                           # Licencia del proyecto
 ```
 
 ---
+
+## 🔧 Problemas Comunes y Soluciones
+
+#### DNS no resuelve nombres
+
+**Síntomas:**
+```bash
+nslookup krb5.lcoronado.com
+# Server: 127.0.0.53
+# ** server can't find krb5.lcoronado.com: NXDOMAIN
+```
+
+**Solución:**
+```bash
+# Verificar que BIND9 está ejecutándose
+sudo systemctl status bind9
+
+# Revisar logs
+sudo journalctl -u bind9 -f
+
+# Verificar sintaxis de configuración
+sudo named-checkconf
+sudo named-checkzone lcoronado.com /etc/bind/db.lcoronado.com
+
+# Reiniciar servicio
+sudo systemctl restart bind9
+
+# Configurar DNS local
+sudo nano /etc/resolv.conf
+# Agregar: nameserver 127.0.0.1
+```
+
+#### NTP no sincroniza
+
+**Síntomas:**
+```bash
+chronyc tracking
+# Reference ID    : 7F7F0101 ()
+# Stratum         : 10
+```
+
+**Solución:**
+```bash
+# Verificar Chrony
+sudo systemctl status chrony
+
+# Ver fuentes NTP
+chronyc sources
+
+# Forzar sincronización
+sudo chronyc makestep
+
+# Verificar conectividad a servidores NTP
+ping pool.ntp.org
+
+# Reiniciar servicio
+sudo systemctl restart chrony
+```
+
+#### LDAP no responde
+
+**Síntomas:**
+```bash
+ldapsearch -x -b "dc=lcoronado,dc=com"
+# ldap_sasl_bind(SIMPLE): Can't contact LDAP server (-1)
+```
+
+**Solución:**
+```bash
+# Verificar que slapd está ejecutándose
+sudo systemctl status slapd
+
+# Revisar logs
+sudo journalctl -u slapd -f
+
+# Verificar puerto 389
+sudo netstat -tlnp | grep 389
+
+# Probar conectividad local
+ldapsearch -x -H ldap://localhost -b "dc=lcoronado,dc=com"
+
+# Reiniciar servicio
+sudo systemctl restart slapd
+```
+
+#### Kerberos: "Clock skew too great"
+
+**Síntomas:**
+```bash
+kinit emafla@LCORONADO.COM
+# kinit: Clock skew too great while getting initial credentials
+```
+
+**Solución:**
+```bash
+# Sincronizar tiempo con NTP
+sudo chronyc makestep
+
+# Verificar sincronización
+chronyc tracking
+
+# Verificar diferencia de tiempo
+date
+
+# Reiniciar KDC
+sudo systemctl restart krb5-kdc
+```
+
+#### No se puede obtener ticket Kerberos
+
+**Síntomas:**
+```bash
+kinit emafla@LCORONADO.COM
+# kinit: Client not found in Kerberos database
+```
+
+**Solución:**
+```bash
+# Verificar que el principal existe
+sudo kadmin.local -q "getprinc emafla@LCORONADO.COM"
+
+# Si no existe, crearlo
+sudo kadmin.local -q "addprinc emafla@LCORONADO.COM"
+
+# Verificar /etc/krb5.conf
+cat /etc/krb5.conf
+
+# Verificar KDC está ejecutándose
+sudo systemctl status krb5-kdc
+```
+
+#### Integración LDAP-Kerberos no funciona
+
+**Síntomas:**
+```bash
+ldapsearch -Y GSSAPI -b "dc=lcoronado,dc=com"
+# SASL/GSSAPI authentication started
+# ldap_sasl_interactive_bind_s: Local error (-2)
+```
+
+**Solución:**
+```bash
+# Verificar keytab de LDAP
+sudo klist -k /etc/ldap/ldap.keytab
+
+# Verificar permisos
+sudo ls -la /etc/ldap/ldap.keytab
+# Debe ser: -rw------- openldap openldap
+
+# Verificar variables de entorno
+cat /etc/default/slapd | grep KRB5_KTNAME
+
+# Recrear keytab si es necesario
+sudo kadmin.local -q "ktadd -k /etc/ldap/ldap.keytab ldap/krb5.lcoronado.com@LCORONADO.COM"
+sudo chown openldap:openldap /etc/ldap/ldap.keytab
+
+# Reiniciar servicios
+sudo systemctl restart slapd
+```
+
+### Comandos de Diagnóstico
+
+```bash
+# Ver todos los servicios del proyecto
+sudo systemctl status bind9 chrony slapd krb5-kdc krb5-admin-server
+
+# Ver puertos escuchando
+sudo netstat -tlnp | grep -E '(53|123|389|88|464|750)'
+
+# Ver logs en tiempo real
+sudo journalctl -f -u bind9 -u chrony -u slapd -u krb5-kdc
+
+# Verificar conectividad de red
+ip addr show
+ping -c 4 8.8.8.8
+
+# Backup de configuraciones
+sudo tar -czf backup-config-$(date +%Y%m%d).tar.gz \
+    /etc/bind/ \
+    /etc/chrony/ \
+    /etc/ldap/ \
+    /etc/krb5.conf \
+    /etc/krb5kdc/
+```
+---
+
+**Última actualización:** Enero 2026  
+**Versión:** 1.0.0
