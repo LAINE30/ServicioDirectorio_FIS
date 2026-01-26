@@ -247,6 +247,50 @@ ldapsearch -x -b "dc=lcoronado,dc=com" "(objectClass=organizationalUnit)"
 - **KDC:** krb5.lcoronado.com
 - **Admin Server:** krb5.lcoronado.com
 
+## krb5.conf
+```bash
+[libdefaults]
+    default_realm = LCORONADO.COM
+    dns_lookup_kdc = false
+    dns_lookup_realm = false
+    ticket_lifetime = 24h
+    renew_lifetime = 7d
+    forwardable = true
+    rdns = false
+    canonicalize = false
+    rdns = false
+
+[realms]
+    LCORONADO.COM = {
+        kdc = krb5.lcoronado.com
+        admin_server = krb5.lcoronado.com
+    }
+
+[domain_realm]
+    .lcoronado.com = LCORONADO.COM
+    lcoronado.com = LCORONADO.COM
+```
+
+## kdc.conf
+```bash
+[kdcdefaults]
+    kdc_ports = 750,88
+
+[realms]
+    LCORONADO.COM = {
+        database_name = /var/lib/krb5kdc/principal
+        admin_keytab = FILE:/etc/krb5kdc/kadm5.keytab
+        acl_file = /etc/krb5kdc/kadm5.acl
+        key_stash_file = /etc/krb5kdc/stash
+        kdc_ports = 750,88
+        max_life = 10h 0m 0s
+        max_renewable_life = 7d 0h 0m 0s
+        #master_key_type = aes256-cts
+        #supported_enctypes = aes256-cts:normal aes128-cts:normal
+        default_principal_flags = +preauth
+    }
+```
+
 #### Comandos de Prueba
 ```bash
 # Obtener ticket de usuario
