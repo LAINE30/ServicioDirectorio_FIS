@@ -11,10 +11,7 @@
 - [Requisitos del Sistema](#requisitos-del-sistema)
 - [Instalación y Configuración](#instalación-y-configuración)
 - [Servicios Implementados](#servicios-implementados)
-- [Pruebas y Validación](#pruebas-y-validación)
 - [Estructura del Repositorio](#estructura-del-repositorio)
-- [Troubleshooting](#troubleshooting)
-- [Referencias](#referencias)
 
 ---
 
@@ -304,38 +301,31 @@ sudo klist -k /etc/ldap/ldap.keytab
 ## 📁 Estructura del Repositorio
 
 ```
-servicio-directorio-fis/
-├── README.md                          # Este archivo
+Proyecto2-FIS/
+├── README.md                         
 ├── CoronadoL-Proyecto2.sh            # Script de instalación automatizada
-├── docs/
-│   ├── analisis-requerimientos.md    # Análisis de requerimientos (30%)
-│   ├── diseño-sistema.md             # Diseño del sistema (30%)
-│   ├── manual-instalacion.md         # Manual detallado de instalación
-│   ├── manual-usuario.md             # Guía para usuarios finales
-│   └── arquitectura.png              # Diagrama de arquitectura
-├── config/
-│   ├── dns/
-│   │   ├── named.conf.local          # Configuración de zonas DNS
-│   │   ├── named.conf.options        # Opciones de BIND9
-│   │   └── db.lcoronado.com          # Archivo de zona
-│   ├── ntp/
-│   │   └── chrony.conf               # Configuración de Chrony
-│   ├── ldap/
-│   │   ├── base_structure.ldif       # Estructura base del directorio
-│   │   ├── users.ldif                # Usuarios de ejemplo
-│   │   └── groups.ldif               # Grupos de ejemplo
-│   └── kerberos/
+|
+├── configuraciones/
+│   ├── dns/etc/bind
+│   │           ├── named.conf.local          # Configuración de zonas DNS
+│   │           ├── named.conf.options        # Opciones de BIND9
+│   │           └── db.lcoronado.com          # Archivo de zona
+│   ├── ntp/etc/chrony
+│   │           └── chrony.conf               # Configuración de Chrony
+│   ├── hosts/
+│   │   ├__ hosts       # Estructura base de host
+│   │   
+│   │  
+│   └── kerberos/etc
 │       ├── krb5.conf                 # Configuración del cliente
-│       ├── kdc.conf                  # Configuración del KDC
+│       ├── krb5kdc/kdc.conf                  # Configuración del KDC
 │       └── kadm5.acl                 # ACLs de administración
-├── scripts/
-│   ├── test-dns.sh                   # Pruebas de DNS
-│   ├── test-ntp.sh                   # Pruebas de NTP
-│   ├── test-ldap.sh                  # Pruebas de LDAP
-│   ├── test-kerberos.sh              # Pruebas de Kerberos
-│   ├── test-integration.sh           # Pruebas de integración
-│   └── backup-config.sh              # Backup de configuraciones
-└── LICENSE                           # Licencia del proyecto
+|___datos/
+    |_estructura.ldif
+    |
+    |_usuario-emafla.ldif
+    |
+    |_usuario-luis.ldif
 ```
 ---
 

@@ -1,3 +1,0 @@
-dn: cn=krbContainer,dc=fis,dc=epn,dc=ec
-objectClass: krbContainer
-cn: krbContainer
