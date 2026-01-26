@@ -96,10 +96,14 @@ El proyecto incluye un script de instalación automatizada que configura todos l
 
 ```bash
 git clone https://github.com/LAINE30/Proyecto2-FIS.git
+```
+#### Paso 2: Clonar el Repositorio
+
+```bash
 cd Proyecto2-FIS
 ```
 
-#### Paso 2: Ejecutar el Script de Instalación
+#### Paso 3: Ejecutar el Script de Instalación
 
 ```bash
 # Dar permisos de ejecución
@@ -119,7 +123,7 @@ El script realizará automáticamente:
 7. Integración LDAP-Kerberos
 8. Configuración de NSS y PAM
 
-#### Paso 3: Verificar la Instalación
+#### Paso 4: Verificar la Instalación
 
 ```bash
 # Verificar servicios activos
@@ -295,99 +299,6 @@ ldapsearch -Y GSSAPI -b "dc=lcoronado,dc=com" "(uid=emafla)"
 # Verificar keytab LDAP
 sudo klist -k /etc/ldap/ldap.keytab
 ```
-
----
-
-## 🧪 Pruebas y Validación
-
-#### 1. Pruebas de DNS
-```bash
-#!/bin/bash
-echo "=== Pruebas DNS ==="
-
-# Resolución directa
-echo "Resolviendo krb5.lcoronado.com..."
-nslookup krb5.lcoronado.com
-
-# Registros SRV Kerberos
-echo "Verificando registros SRV Kerberos..."
-nslookup -query=srv _kerberos._tcp.lcoronado.com
-
-# Registros SRV LDAP
-echo "Verificando registros SRV LDAP..."
-nslookup -query=srv _ldap._tcp.lcoronado.com
-```
-
-#### 2. Pruebas de NTP
-```bash
-#!/bin/bash
-echo "=== Pruebas NTP ==="
-
-# Estado de sincronización
-chronyc tracking
-
-# Fuentes de tiempo
-chronyc sources -v
-
-# Verificar que el servidor está escuchando
-netstat -uln | grep :123
-```
-
-#### 3. Pruebas de LDAP
-```bash
-#!/bin/bash
-echo "=== Pruebas LDAP ==="
-
-# Conectividad básica
-ldapsearch -x -LLL -H ldap://localhost -b "dc=lcoronado,dc=com"
-
-# Autenticación de usuario
-echo "Probando autenticación de emafla..."
-ldapwhoami -x -D "uid=emafla,ou=People,dc=lcoronado,dc=com" -W
-
-# Contar usuarios
-echo "Usuarios en el directorio:"
-ldapsearch -x -b "ou=People,dc=lcoronado,dc=com" -s one | grep -c "dn:"
-```
-
-#### 4. Pruebas de Kerberos
-```bash
-#!/bin/bash
-echo "=== Pruebas Kerberos ==="
-
-# Obtener ticket
-echo "Obteniendo ticket para emafla..."
-echo "admin" | kinit emafla@LCORONADO.COM
-
-# Verificar ticket
-echo "Tickets activos:"
-klist
-
-# Probar renovación
-echo "Renovando ticket..."
-kinit -R
-
-# Limpiar
-kdestroy
-```
-
-#### 5. Pruebas de Integración
-```bash
-#!/bin/bash
-echo "=== Pruebas de Integración ==="
-
-# Autenticación Kerberos + búsqueda LDAP
-echo "admin" | kinit emafla@LCORONADO.COM
-ldapsearch -Y GSSAPI -b "dc=lcoronado,dc=com" "(uid=emafla)"
-
-# Verificar que todos los servicios están activos
-for service in bind9 chrony slapd krb5-kdc krb5-admin-server; do
-    echo "Verificando $service..."
-    systemctl is-active $service
-done
-```
-
-
 ---
 
 ## 📁 Estructura del Repositorio
@@ -425,192 +336,6 @@ servicio-directorio-fis/
 │   ├── test-integration.sh           # Pruebas de integración
 │   └── backup-config.sh              # Backup de configuraciones
 └── LICENSE                           # Licencia del proyecto
-```
-
----
-
-## 🔧 Problemas Comunes y Soluciones
-
-#### DNS no resuelve nombres
-
-**Síntomas:**
-```bash
-nslookup krb5.lcoronado.com
-# Server: 127.0.0.53
-# ** server can't find krb5.lcoronado.com: NXDOMAIN
-```
-
-**Solución:**
-```bash
-# Verificar que BIND9 está ejecutándose
-sudo systemctl status bind9
-
-# Revisar logs
-sudo journalctl -u bind9 -f
-
-# Verificar sintaxis de configuración
-sudo named-checkconf
-sudo named-checkzone lcoronado.com /etc/bind/db.lcoronado.com
-
-# Reiniciar servicio
-sudo systemctl restart bind9
-
-# Configurar DNS local
-sudo nano /etc/resolv.conf
-# Agregar: nameserver 127.0.0.1
-```
-
-#### NTP no sincroniza
-
-**Síntomas:**
-```bash
-chronyc tracking
-# Reference ID    : 7F7F0101 ()
-# Stratum         : 10
-```
-
-**Solución:**
-```bash
-# Verificar Chrony
-sudo systemctl status chrony
-
-# Ver fuentes NTP
-chronyc sources
-
-# Forzar sincronización
-sudo chronyc makestep
-
-# Verificar conectividad a servidores NTP
-ping pool.ntp.org
-
-# Reiniciar servicio
-sudo systemctl restart chrony
-```
-
-#### LDAP no responde
-
-**Síntomas:**
-```bash
-ldapsearch -x -b "dc=lcoronado,dc=com"
-# ldap_sasl_bind(SIMPLE): Can't contact LDAP server (-1)
-```
-
-**Solución:**
-```bash
-# Verificar que slapd está ejecutándose
-sudo systemctl status slapd
-
-# Revisar logs
-sudo journalctl -u slapd -f
-
-# Verificar puerto 389
-sudo netstat -tlnp | grep 389
-
-# Probar conectividad local
-ldapsearch -x -H ldap://localhost -b "dc=lcoronado,dc=com"
-
-# Reiniciar servicio
-sudo systemctl restart slapd
-```
-
-#### Kerberos: "Clock skew too great"
-
-**Síntomas:**
-```bash
-kinit emafla@LCORONADO.COM
-# kinit: Clock skew too great while getting initial credentials
-```
-
-**Solución:**
-```bash
-# Sincronizar tiempo con NTP
-sudo chronyc makestep
-
-# Verificar sincronización
-chronyc tracking
-
-# Verificar diferencia de tiempo
-date
-
-# Reiniciar KDC
-sudo systemctl restart krb5-kdc
-```
-
-#### No se puede obtener ticket Kerberos
-
-**Síntomas:**
-```bash
-kinit emafla@LCORONADO.COM
-# kinit: Client not found in Kerberos database
-```
-
-**Solución:**
-```bash
-# Verificar que el principal existe
-sudo kadmin.local -q "getprinc emafla@LCORONADO.COM"
-
-# Si no existe, crearlo
-sudo kadmin.local -q "addprinc emafla@LCORONADO.COM"
-
-# Verificar /etc/krb5.conf
-cat /etc/krb5.conf
-
-# Verificar KDC está ejecutándose
-sudo systemctl status krb5-kdc
-```
-
-#### Integración LDAP-Kerberos no funciona
-
-**Síntomas:**
-```bash
-ldapsearch -Y GSSAPI -b "dc=lcoronado,dc=com"
-# SASL/GSSAPI authentication started
-# ldap_sasl_interactive_bind_s: Local error (-2)
-```
-
-**Solución:**
-```bash
-# Verificar keytab de LDAP
-sudo klist -k /etc/ldap/ldap.keytab
-
-# Verificar permisos
-sudo ls -la /etc/ldap/ldap.keytab
-# Debe ser: -rw------- openldap openldap
-
-# Verificar variables de entorno
-cat /etc/default/slapd | grep KRB5_KTNAME
-
-# Recrear keytab si es necesario
-sudo kadmin.local -q "ktadd -k /etc/ldap/ldap.keytab ldap/krb5.lcoronado.com@LCORONADO.COM"
-sudo chown openldap:openldap /etc/ldap/ldap.keytab
-
-# Reiniciar servicios
-sudo systemctl restart slapd
-```
-
-### Comandos de Diagnóstico
-
-```bash
-# Ver todos los servicios del proyecto
-sudo systemctl status bind9 chrony slapd krb5-kdc krb5-admin-server
-
-# Ver puertos escuchando
-sudo netstat -tlnp | grep -E '(53|123|389|88|464|750)'
-
-# Ver logs en tiempo real
-sudo journalctl -f -u bind9 -u chrony -u slapd -u krb5-kdc
-
-# Verificar conectividad de red
-ip addr show
-ping -c 4 8.8.8.8
-
-# Backup de configuraciones
-sudo tar -czf backup-config-$(date +%Y%m%d).tar.gz \
-    /etc/bind/ \
-    /etc/chrony/ \
-    /etc/ldap/ \
-    /etc/krb5.conf \
-    /etc/krb5kdc/
 ```
 ---
 
